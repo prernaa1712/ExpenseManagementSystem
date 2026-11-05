@@ -117,6 +117,11 @@
                     <span>Analytics</span>
                 </a>
 
+                <a href="#budget" class="nav-link">
+                    <span class="nav-icon">₹</span>
+                    <span>Monthly Budget</span>
+                </a>
+
                 <a href="#prediction" class="nav-link">
                     <span class="nav-icon">⌁</span>
                     <span>Expense Prediction</span>
@@ -421,6 +426,73 @@
 
                 </section>
 
+                <!-- MONTHLY BUDGET -->
+                <section id="budget" class="content-panel feature-section budget-section">
+
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow">SMART MONEY MANAGEMENT</p>
+                            <h2>Monthly Budget</h2>
+                            <p>Set a spending limit and stay in control of your finances.</p>
+                        </div>
+                        <span class="prediction-symbol">₹</span>
+                    </div>
+
+                    <div class="budget-card">
+
+                        <div class="budget-form">
+                            <label for="budgetMonth">Select Month</label>
+                            <input type="month" id="budgetMonth">
+
+                            <label for="budgetAmount">Monthly Budget (₹)</label>
+                            <input type="number" id="budgetAmount" min="1" step="0.01"
+                                placeholder="Enter your monthly budget">
+
+                            <button type="button" id="saveBudgetButton">
+                                Save Budget
+                            </button>
+
+                            <p id="budgetMessage" aria-live="polite"></p>
+                        </div>
+
+                        <div class="budget-summary">
+
+                            <div class="budget-stat">
+                                <span>Monthly Budget</span>
+                                <strong id="budgetTotal">₹0.00</strong>
+                            </div>
+
+                            <div class="budget-stat">
+                                <span>Total Spent</span>
+                                <strong id="budgetSpent">₹0.00</strong>
+                            </div>
+
+                            <div class="budget-stat">
+                                <span>Remaining Balance</span>
+                                <strong id="budgetRemaining">₹0.00</strong>
+                            </div>
+
+                            <div class="budget-progress">
+                                <div class="budget-progress-heading">
+                                    <span>Budget Used</span>
+                                    <strong id="budgetPercentage">0%</strong>
+                                </div>
+
+                                <div class="budget-progress-track" role="progressbar" aria-label="Monthly budget used"
+                                    aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="budgetProgressTrack">
+                                    <div id="budgetProgressBar"></div>
+                                </div>
+                            </div>
+
+                            <p id="budgetAlert" aria-live="polite">
+                                Set a budget to start tracking your spending.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </section>
 
                 <!-- PREDICTION -->
                 <section id="prediction" class="content-panel feature-section prediction-section">

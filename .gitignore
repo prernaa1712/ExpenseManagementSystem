@@ -32,3 +32,6 @@ uploads/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Flask secret key and instance data
+instance/

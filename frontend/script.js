@@ -633,6 +633,9 @@ async function loadExpenses() {
         loadCategoryChart(expenses);
         loadMonthlyChart(expenses);
         loadSpendingInsights(expenses);
+
+        // Refresh monthly budget after expense changes.
+        await loadMonthlyBudget();
     } catch (error) {
         console.error("Unable to refresh dashboard:", error);
 
@@ -1223,3 +1226,173 @@ setHidden(chatbotWindow, true);
 resetPrediction();
 resetChatbot();
 checkSession();
+
+// =====================================
+// MONTHLY BUDGET MANAGEMENT
+// =====================================
+
+const budgetMonthInput = document.getElementById("budgetMonth");
+const budgetAmountInput = document.getElementById("budgetAmount");
+const saveBudgetButton = document.getElementById("saveBudgetButton");
+
+const budgetMessage = document.getElementById("budgetMessage");
+const budgetTotal = document.getElementById("budgetTotal");
+const budgetSpent = document.getElementById("budgetSpent");
+const budgetRemaining = document.getElementById("budgetRemaining");
+const budgetPercentage = document.getElementById("budgetPercentage");
+
+const budgetProgressBar = document.getElementById("budgetProgressBar");
+const budgetProgressTrack = document.getElementById("budgetProgressTrack");
+const budgetAlert = document.getElementById("budgetAlert");
+
+function getCurrentBudgetMonth() {
+    const now = new Date();
+
+    return `${now.getFullYear()}-${String(
+        now.getMonth() + 1
+    ).padStart(2, "0")}`;
+}
+
+function formatBudgetCurrency(amount) {
+    return Number(amount).toLocaleString("en-IN", {
+        style: "currency",
+        currency: "INR",
+        minimumFractionDigits: 2
+    });
+}
+
+// Load budget details from Flask
+async function loadMonthlyBudget() {
+    const month = budgetMonthInput.value;
+
+    if (!month) return;
+
+    try {
+        const response = await fetch(
+            `/api/budgets?month=${encodeURIComponent(month)}`
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Unable to load budget.");
+        }
+
+        budgetTotal.textContent = formatBudgetCurrency(data.budget);
+        budgetSpent.textContent = formatBudgetCurrency(data.total_spent);
+        budgetRemaining.textContent = formatBudgetCurrency(data.remaining);
+
+        const percentage = Number(data.percentage_used) || 0;
+
+        budgetPercentage.textContent = `${percentage.toFixed(1)}%`;
+
+        // Keep the visual progress bar within 0–100%.
+        const progress = Math.min(Math.max(percentage, 0), 100);
+
+        budgetProgressBar.style.width = `${progress}%`;
+
+        // Change progress colour according to budget usage.
+        if (percentage >= 100) {
+            budgetProgressBar.style.background = "#f04438";
+        } else if (percentage >= 80) {
+            budgetProgressBar.style.background = "#f79009";
+        } else {
+            budgetProgressBar.style.background =
+                "linear-gradient(90deg, #8178ff, #6258e8)";
+        }
+
+        budgetProgressTrack.setAttribute(
+            "aria-valuenow",
+            progress.toFixed(0)
+        );
+
+        // Budget alerts
+        if (!data.has_budget) {
+            budgetAlert.textContent =
+                "Set a budget to start tracking your spending.";
+            budgetAlert.className = "";
+            budgetAmountInput.value = "";
+        } else {
+            budgetAmountInput.value = data.budget;
+
+            if (percentage >= 100) {
+                budgetAlert.textContent =
+                    "⚠️ Budget exceeded! You have spent more than your limit.";
+                budgetAlert.className = "budget-danger";
+            } else if (percentage >= 80) {
+                budgetAlert.textContent =
+                    "⚠️ Warning! You have used 80% or more of your budget.";
+                budgetAlert.className = "budget-warning";
+            } else {
+                budgetAlert.textContent =
+                    "✓ You are within your monthly budget. Keep it up!";
+                budgetAlert.className = "budget-success";
+            }
+        }
+
+    } catch (error) {
+        console.error("Budget loading error:", error);
+        budgetAlert.textContent = error.message;
+    }
+}
+
+// Save or update monthly budget
+async function saveMonthlyBudget() {
+    const month = budgetMonthInput.value;
+    const amount = Number(budgetAmountInput.value);
+
+    if (!month) {
+        budgetMessage.textContent = "Please select a month.";
+        return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+        budgetMessage.textContent =
+            "Please enter a valid budget amount greater than zero.";
+        return;
+    }
+
+    saveBudgetButton.disabled = true;
+    saveBudgetButton.textContent = "Saving...";
+
+    try {
+        const response = await fetch("/api/budgets", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                month: month,
+                amount: amount
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Unable to save budget.");
+        }
+
+        budgetMessage.textContent =
+            "✓ Monthly budget saved successfully.";
+
+        await loadMonthlyBudget();
+
+    } catch (error) {
+        console.error("Budget saving error:", error);
+        budgetMessage.textContent = error.message;
+
+    } finally {
+        saveBudgetButton.disabled = false;
+        saveBudgetButton.textContent = "Save Budget";
+    }
+}
+
+// Event listeners
+saveBudgetButton.addEventListener("click", saveMonthlyBudget);
+
+budgetMonthInput.addEventListener("change", loadMonthlyBudget);
+
+// Initialize budget section
+budgetMonthInput.value = getCurrentBudgetMonth();
+loadMonthlyBudget();

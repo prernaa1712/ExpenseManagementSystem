@@ -62,3 +62,45 @@ class Expense(db.Model):
             "date": self.date,
             "description": self.description
         }
+
+class Budget(db.Model):
+    __tablename__ = "budget"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True
+    )
+
+    # Format: YYYY-MM (example: 2026-11)
+    month = db.Column(db.String(7), nullable=False)
+
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+
+    created_at = db.Column(
+        db.DateTime,
+        server_default=db.func.current_timestamp()
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id",
+            "month",
+            name="unique_user_month_budget"
+        ),
+        db.CheckConstraint(
+            "amount > 0",
+            name="positive_budget_amount"
+        )
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "month": self.month,
+            "amount": float(self.amount)
+        }

@@ -1,4 +1,6 @@
-
+import math
+from datetime import datetime
+import secrets
 import os
 import sys
 import uuid
@@ -8,7 +10,9 @@ from flask import (
     Flask, request, jsonify, send_from_directory, session
 )
 from werkzeug.utils import secure_filename
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import IntegrityError
+
 
 sys.path.insert(
     0,
@@ -21,7 +25,7 @@ UPLOAD_DIR = os.path.join(FRONTEND_DIR, "uploads")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-from backend.models import db, User, Expense
+from backend.models import db, User, Expense, Budget
 from ml.predictor import prepare_data, predict_next_month
 from bot.bot import chatbot_response
 
@@ -313,6 +317,132 @@ def delete_expense(expense_id):
         "message": "Expense deleted successfully."
     })
 
+# -----------------------------------
+# Monthly Budget routes
+# -----------------------------------
+
+def validate_budget_month(month):
+    try:
+        if not isinstance(month, str) or len(month) != 7:
+            return False
+
+        datetime.strptime(month, "%Y-%m")
+        return True
+
+    except ValueError:
+        return False
+
+
+@app.route("/api/budgets", methods=["GET"])
+@login_required
+def get_budget():
+
+    user_id = session["user_id"]
+
+    month = request.args.get(
+        "month",
+        datetime.now().strftime("%Y-%m")
+    )
+
+    if not validate_budget_month(month):
+        return jsonify({
+            "error": "Invalid month format. Use YYYY-MM."
+        }), 400
+
+    budget = Budget.query.filter_by(
+        user_id=user_id,
+        month=month
+    ).first()
+
+    total_spent = db.session.query(
+        db.func.coalesce(db.func.sum(Expense.amount), 0)
+    ).filter(
+        Expense.user_id == user_id,
+        Expense.date.like(f"{month}-%")
+    ).scalar()
+
+    total_spent = float(total_spent or 0)
+
+    budget_amount = (
+        float(budget.amount) if budget else 0
+    )
+
+    remaining = budget_amount - total_spent
+
+    percentage_used = (
+        (total_spent / budget_amount) * 100
+        if budget_amount > 0 else 0
+    )
+
+    return jsonify({
+        "month": month,
+        "budget": budget_amount,
+        "total_spent": round(total_spent, 2),
+        "remaining": round(remaining, 2),
+        "percentage_used": round(percentage_used, 2),
+        "has_budget": budget is not None
+    })
+
+
+@app.route("/api/budgets", methods=["POST"])
+@login_required
+def save_budget():
+
+    data = request.get_json(silent=True) or {}
+
+    month = data.get(
+        "month",
+        datetime.now().strftime("%Y-%m")
+    )
+
+    if not validate_budget_month(month):
+        return jsonify({
+            "error": "Invalid month format. Use YYYY-MM."
+        }), 400
+
+    try:
+        amount = float(data.get("amount"))
+
+        if not math.isfinite(amount) or amount <= 0:
+            raise ValueError
+
+    except (TypeError, ValueError):
+        return jsonify({
+            "error": "Enter a valid budget amount greater than zero."
+        }), 400
+
+    user_id = session["user_id"]
+
+    budget = Budget.query.filter_by(
+        user_id=user_id,
+        month=month
+    ).first()
+
+    if budget:
+        budget.amount = amount
+    else:
+        budget = Budget(
+            user_id=user_id,
+            month=month,
+            amount=amount
+        )
+        db.session.add(budget)
+
+    try:
+        db.session.commit()
+
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Budget save failed")
+
+        return jsonify({
+            "error": "Unable to save budget."
+        }), 500
+
+    return jsonify({
+        "message": "Monthly budget saved successfully.",
+        "budget": budget.to_dict()
+    }), 201
 
 # -----------------------------------
 # Machine learning routes
@@ -384,6 +514,19 @@ def upload_profile_picture():
     filename = secure_filename(file.filename)
     unique_filename = f"{uuid.uuid4().hex}_{filename}"
     file_path = os.path.join(UPLOAD_DIR, unique_filename)
+
+    try:
+        file.stream.seek(0)
+
+        image = Image.open(file.stream)
+        image.verify()
+
+        file.stream.seek(0)
+
+    except (UnidentifiedImageError, OSError, ValueError):
+        return jsonify({
+            "error": "Invalid image file. Please upload a valid image."
+        }), 400
 
     file.save(file_path)
 
