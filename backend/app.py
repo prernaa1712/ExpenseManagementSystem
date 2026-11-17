@@ -4,6 +4,7 @@ from datetime import datetime
 import secrets
 import os
 import sys
+import ssl
 import uuid
 from functools import wraps
 
@@ -39,20 +40,52 @@ app.config["SECRET_KEY"] = os.environ.get(
     "SECRET_KEY",
     "change-this-development-secret-key"
 )
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    "sqlite:///" +
-    os.path.join(BASE_DIR, "database", "expenses.db").replace("\\", "/")
-)
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
+# Database configuration
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace(
+            "postgres://",
+            "postgresql+pg8000://",
+            1
+        )
+    elif DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace(
+            "postgresql://",
+            "postgresql+pg8000://",
+            1
+        )
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+        "connect_args": {
+            "ssl_context": ssl.create_default_context(
+                cafile=os.path.join(BASE_DIR, "supabase-ca.crt")
+            )
+        }
+    }
+
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        "sqlite:///" +
+        os.path.join(BASE_DIR, "database", "expenses.db").replace("\\", "/")
+    )
+
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True
+    }
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# Initialize SQLAlchemys
 db.init_app(app)
-
-with app.app_context():
-    db.create_all()
-
 
 # -----------------------------------
 # Authentication helper
@@ -351,7 +384,7 @@ def add_expense():
     db.session.add(expense)
     db.session.commit()
     check_and_send_budget_alert(
-        user.id,
+        session["user_id"],
         expense.date[:7]
     )
 
