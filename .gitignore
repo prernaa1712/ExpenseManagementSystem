@@ -13,6 +13,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+credentials.json
+token.json
 
 # Database files and backups
 database/*.db
@@ -35,3 +37,16 @@ Thumbs.db
 
 # Flask secret key and instance data
 instance/
+
+.env
+.env.*
+!.env.example
+
+# Obsolete SMTP test scripts
+test_budget_email.py
+test_smtp_465.py
+
+# Local Gmail testing scripts
+test_budget_alert_gmail.py
+test_gmail_auth.py
+test_gmail_send.py

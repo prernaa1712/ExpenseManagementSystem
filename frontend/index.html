@@ -423,12 +423,10 @@
                         </article>
 
                     </div>
-
                 </section>
 
                 <!-- MONTHLY BUDGET -->
                 <section id="budget" class="content-panel feature-section budget-section">
-
                     <div class="section-heading">
                         <div>
                             <p class="eyebrow">SMART MONEY MANAGEMENT</p>
@@ -487,12 +485,48 @@
                             <p id="budgetAlert" aria-live="polite">
                                 Set a budget to start tracking your spending.
                             </p>
+                        </div>
+                    </div>
+                </section>
+                <!-- MONTHLY BUDGET HISTORY -->
+                <section id="budget-history" class="content-panel feature-section">
 
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow">YOUR FINANCIAL RECORDS</p>
+                            <h2>Monthly Budget History</h2>
+                            <p>Review your previous monthly budgets and actual spending.</p>
                         </div>
 
+                        <button type="button" id="refreshBudgetHistory">
+                            ↻ Refresh
+                        </button>
+                    </div>
+
+                    <div id="budgetHistoryMessage" aria-live="polite">
+                        Loading budget history...
+                    </div>
+
+                    <div class="table-wrapper" id="budgetHistoryWrapper" hidden>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Budget</th>
+                                    <th>Total Spent</th>
+                                    <th>Remaining</th>
+                                    <th>Used</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="budgetHistoryTableBody">
+                            </tbody>
+                        </table>
                     </div>
 
                 </section>
+
 
                 <!-- PREDICTION -->
                 <section id="prediction" class="content-panel feature-section prediction-section">

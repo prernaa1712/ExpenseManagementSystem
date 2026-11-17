@@ -1,4 +1,5 @@
 import math
+from dotenv import load_dotenv
 from datetime import datetime
 import secrets
 import os
@@ -20,12 +21,14 @@ sys.path.insert(
 )
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 UPLOAD_DIR = os.path.join(FRONTEND_DIR, "uploads")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-from backend.models import db, User, Expense, Budget
+from backend.models import db, User, Expense, Budget, BudgetAlert
+from backend.email_service import send_budget_alert
 from ml.predictor import prepare_data, predict_next_month
 from bot.bot import chatbot_response
 
@@ -82,6 +85,94 @@ def get_logged_in_user():
 
     return db.session.get(User, user_id)
 
+
+def check_and_send_budget_alert(user_id, month):
+    """
+    Check monthly spending and send each budget alert only once
+    per user, per month.
+    """
+
+    # Find the user's budget for the selected month
+    budget = Budget.query.filter_by(
+        user_id=user_id,
+        month=month
+    ).first()
+
+    if not budget:
+        return
+
+    # Find the registered user
+    user = User.query.get(user_id)
+
+    if not user:
+        return
+
+    # Calculate total expenses for this user and month
+    expenses = Expense.query.filter(
+        Expense.user_id == user_id,
+        Expense.date.like(f"{month}-%")
+    ).all()
+
+    total_spent = sum(float(expense.amount) for expense in expenses)
+
+    budget_amount = float(budget.amount)
+
+    if budget_amount <= 0:
+        return
+
+    percentage_used = (total_spent / budget_amount) * 100
+
+    # Determine which alerts are applicable
+    alert_types = []
+
+    if percentage_used >= 80:
+        alert_types.append("80")
+
+    if percentage_used >= 100:
+        alert_types.append("100")
+
+    for alert_type in alert_types:
+
+        # Check whether this notification was already sent
+        existing_alert = BudgetAlert.query.filter_by(
+            user_id=user_id,
+            month=month,
+            alert_type=alert_type
+        ).first()
+
+        if existing_alert:
+            continue
+
+        # Send the email
+        email_sent = send_budget_alert(
+            user=user,
+            month=month,
+            budget_amount=budget_amount,
+            total_spent=total_spent,
+            percentage_used=percentage_used,
+            alert_type=alert_type
+        )
+
+        # Record the alert only if the email was sent successfully
+        if email_sent:
+            try:
+                alert = BudgetAlert(
+                    user_id=user_id,
+                    month=month,
+                    alert_type=alert_type
+                )
+
+                db.session.add(alert)
+                db.session.commit()
+
+            except IntegrityError:
+                db.session.rollback()
+                app.logger.warning(
+                    "Budget alert already recorded for user %s, month %s, type %s",
+                    user_id,
+                    month,
+                    alert_type
+                )
 
 # -----------------------------------
 # Frontend routes
@@ -259,6 +350,10 @@ def add_expense():
 
     db.session.add(expense)
     db.session.commit()
+    check_and_send_budget_alert(
+        user.id,
+        expense.date[:7]
+    )
 
     return jsonify(expense.to_dict()), 201
 
@@ -273,7 +368,7 @@ def update_expense(expense_id):
 
     if expense is None:
         return jsonify({"error": "Expense not found."}), 404
-
+    old_month = expense.date[:7]
     data = request.get_json(silent=True) or {}
 
     if "amount" in data:
@@ -295,7 +390,14 @@ def update_expense(expense_id):
         expense.description = str(data["description"]).strip()
 
     db.session.commit()
+    # NEW: Check the old and new months
+    new_month = expense.date[:7]
+    user_id = session["user_id"]
 
+    check_and_send_budget_alert(user_id, old_month)
+
+    if new_month != old_month:
+        check_and_send_budget_alert(user_id, new_month)
     return jsonify(expense.to_dict())
 
 
@@ -309,10 +411,14 @@ def delete_expense(expense_id):
 
     if expense is None:
         return jsonify({"error": "Expense not found."}), 404
-
+    expense_month = expense.date[:7]
     db.session.delete(expense)
     db.session.commit()
-
+    # NEW: Recalculate budget usage
+    check_and_send_budget_alert(
+        session["user_id"],
+        expense_month
+    )
     return jsonify({
         "message": "Expense deleted successfully."
     })
@@ -384,6 +490,62 @@ def get_budget():
     })
 
 
+@app.route("/api/budgets/history", methods=["GET"])
+@login_required
+def get_budget_history():
+
+    user_id = session["user_id"]
+
+    # Fetch all monthly budgets belonging to the logged-in user
+    budgets = Budget.query.filter_by(
+        user_id=user_id
+    ).order_by(
+        Budget.month.desc()
+    ).all()
+
+    history = []
+
+    for budget in budgets:
+
+        budget_amount = float(budget.amount)
+
+        # Calculate actual spending for this month
+        total_spent = db.session.query(
+            db.func.coalesce(db.func.sum(Expense.amount), 0)
+        ).filter(
+            Expense.user_id == user_id,
+            Expense.date.like(f"{budget.month}-%")
+        ).scalar()
+
+        total_spent = float(total_spent)
+
+        remaining = budget_amount - total_spent
+        percentage_used = (total_spent / budget_amount) * 100
+
+        # Determine monthly budget status
+        if percentage_used >= 100:
+            status = "Exceeded"
+        elif percentage_used >= 80:
+            status = "Warning"
+        else:
+            status = "Under Budget"
+
+        history.append({
+            "month": budget.month,
+            "budget": budget_amount,
+            "total_spent": total_spent,
+            "remaining": max(remaining, 0),
+            "exceeded_amount": max(-remaining, 0),
+            "percentage_used": round(percentage_used, 2),
+            "status": status
+        })
+
+    return jsonify({
+        "history": history,
+        "total_months": len(history)
+    }), 200
+
+
 @app.route("/api/budgets", methods=["POST"])
 @login_required
 def save_budget():
@@ -438,6 +600,8 @@ def save_budget():
         return jsonify({
             "error": "Unable to save budget."
         }), 500
+    # NEW: Check budget thresholds and send email alerts
+    check_and_send_budget_alert(user_id, month)
 
     return jsonify({
         "message": "Monthly budget saved successfully.",

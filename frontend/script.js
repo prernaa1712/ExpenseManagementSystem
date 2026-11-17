@@ -636,6 +636,9 @@ async function loadExpenses() {
 
         // Refresh monthly budget after expense changes.
         await loadMonthlyBudget();
+
+        // Refresh historical budget records after expense changes.
+        await loadBudgetHistory();
     } catch (error) {
         console.error("Unable to refresh dashboard:", error);
 
@@ -1377,6 +1380,7 @@ async function saveMonthlyBudget() {
             "✓ Monthly budget saved successfully.";
 
         await loadMonthlyBudget();
+        await loadBudgetHistory();
 
     } catch (error) {
         console.error("Budget saving error:", error);
@@ -1396,3 +1400,128 @@ budgetMonthInput.addEventListener("change", loadMonthlyBudget);
 // Initialize budget section
 budgetMonthInput.value = getCurrentBudgetMonth();
 loadMonthlyBudget();
+
+
+/* =====================================
+   MONTHLY BUDGET HISTORY
+===================================== */
+
+const budgetHistoryTableBody = byId("budgetHistoryTableBody");
+const budgetHistoryMessage = byId("budgetHistoryMessage");
+const budgetHistoryWrapper = byId("budgetHistoryWrapper");
+const refreshBudgetHistoryButton = byId("refreshBudgetHistory");
+
+// Convert YYYY-MM into a readable month name.
+function formatHistoryMonth(month) {
+    const [year, monthNumber] = month.split("-").map(Number);
+
+    return new Date(year, monthNumber - 1, 1).toLocaleDateString(
+        "en-IN",
+        {
+            month: "long",
+            year: "numeric"
+        }
+    );
+}
+
+// Load historical budgets from Flask.
+async function loadBudgetHistory() {
+
+    if (!budgetHistoryTableBody) return;
+
+    budgetHistoryMessage.textContent = "Loading budget history...";
+    budgetHistoryWrapper.hidden = true;
+
+    try {
+        const data = await apiRequest("/api/budgets/history");
+
+        const history = data.history;
+
+        budgetHistoryTableBody.replaceChildren();
+
+        if (!Array.isArray(history) || history.length === 0) {
+            budgetHistoryMessage.textContent =
+                "No budget history available yet. Save your first monthly budget to get started.";
+
+            return;
+        }
+
+        history.forEach((item) => {
+
+            const row = document.createElement("tr");
+
+            // Month
+            const monthCell = document.createElement("td");
+            monthCell.textContent = formatHistoryMonth(item.month);
+
+            // Budget
+            const budgetCell = document.createElement("td");
+            budgetCell.textContent =
+                formatBudgetCurrency(item.budget);
+
+            // Total spent
+            const spentCell = document.createElement("td");
+            spentCell.textContent =
+                formatBudgetCurrency(item.total_spent);
+
+            // Remaining balance
+            const remainingCell = document.createElement("td");
+            remainingCell.textContent =
+                formatBudgetCurrency(item.remaining);
+
+            // Percentage used
+            const percentageCell = document.createElement("td");
+            percentageCell.textContent =
+                `${Number(item.percentage_used).toFixed(1)}%`;
+
+            // Budget status
+            const statusCell = document.createElement("td");
+            const statusBadge = document.createElement("span");
+
+            statusBadge.textContent = item.status;
+            statusBadge.className =
+                "budget-history-status " +
+                String(item.status).toLowerCase().replace(/\s+/g, "-");
+
+            statusCell.appendChild(statusBadge);
+
+            row.append(
+                monthCell,
+                budgetCell,
+                spentCell,
+                remainingCell,
+                percentageCell,
+                statusCell
+            );
+
+            budgetHistoryTableBody.appendChild(row);
+        });
+
+        budgetHistoryMessage.textContent =
+            `Showing ${data.total_months} month(s) of budget history.`;
+
+        budgetHistoryWrapper.hidden = false;
+
+    } catch (error) {
+
+        console.error("Budget history loading error:", error);
+
+        budgetHistoryMessage.textContent =
+            error.message || "Unable to load budget history.";
+
+        if (isUnauthenticated(error)) {
+            showAuth("login", "Please log in again to continue.");
+        }
+    }
+}
+
+// Manually refresh history.
+if (refreshBudgetHistoryButton) {
+    refreshBudgetHistoryButton.addEventListener(
+        "click",
+        loadBudgetHistory
+    );
+}
+
+// Initial history loading after the budget section initializes.
+loadBudgetHistory();

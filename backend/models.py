@@ -104,3 +104,36 @@ class Budget(db.Model):
             "month": self.month,
             "amount": float(self.amount)
         }
+
+
+class BudgetAlert(db.Model):
+    __tablename__ = "budget_alert"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True
+    )
+
+    month = db.Column(db.String(7), nullable=False)
+
+    # 80 = budget warning, 100 = budget reached/exceeded
+    alert_type = db.Column(db.String(3), nullable=False)
+
+    sent_at = db.Column(
+        db.DateTime,
+        server_default=db.func.current_timestamp(),
+        nullable=False
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id",
+            "month",
+            "alert_type",
+            name="unique_user_month_alert"
+        ),
+    )
