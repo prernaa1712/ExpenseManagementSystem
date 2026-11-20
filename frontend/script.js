@@ -231,7 +231,7 @@ function showDashboard(user) {
     const profileName = $(".profile-info strong");
     const profileAvatar = $(".profile-avatar");
 
-    setText(welcomeHeading, `Welcome, ${user.name}! 👋`);
+    setText(welcomeHeading, `Welcome back, ${user.name}`);
     setText(profileName, user.name);
 
     const initials = getInitials(user.name);
@@ -741,10 +741,7 @@ async function editExpense(expenseId) {
 
         setText(submitExpenseBtn, "Update Expense");
 
-        byId("add-expense")?.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
+        showView("add-expense");
 
         amountInput?.focus();
     } catch (error) {
@@ -1301,7 +1298,7 @@ async function loadMonthlyBudget() {
             budgetProgressBar.style.background = "#f79009";
         } else {
             budgetProgressBar.style.background =
-                "linear-gradient(90deg, #8178ff, #6258e8)";
+                "#7a4dff";
         }
 
         budgetProgressTrack.setAttribute(
@@ -1525,3 +1522,273 @@ if (refreshBudgetHistoryButton) {
 
 // Initial history loading after the budget section initializes.
 loadBudgetHistory();
+
+
+/* ==========================================
+   FORGOT PASSWORD AND OTP RESET FLOW
+========================================== */
+
+(function () {
+    let passwordResetEmail = "";
+
+    const loginForm = document.getElementById("loginForm");
+    const registerForm = document.getElementById("registerForm");
+    const forgotForm = document.getElementById("forgotPasswordForm");
+    const verifyOTPForm = document.getElementById("verifyResetOTPForm");
+    const resetPasswordForm = document.getElementById("resetPasswordForm");
+
+    const authTitle = document.getElementById("authTitle");
+    const authSubtitle = document.getElementById("authSubtitle");
+    const authMessage = document.getElementById("authMessage");
+
+    function showResetMessage(message) {
+        authMessage.textContent = message;
+    }
+
+    function showResetScreen(screen) {
+        loginForm.hidden = screen !== "login";
+        registerForm.hidden = screen !== "register";
+        forgotForm.hidden = screen !== "forgot";
+        verifyOTPForm.hidden = screen !== "otp";
+        resetPasswordForm.hidden = screen !== "reset";
+
+        const screenDetails = {
+            login: [
+                "Welcome back!",
+                "Log in to manage your expenses securely."
+            ],
+            forgot: [
+                "Forgot Password?",
+                "Enter your registered email to receive a verification code."
+            ],
+            otp: [
+                "Verify Your Email",
+                "Enter the six-digit code sent to your email address."
+            ],
+            reset: [
+                "Create New Password",
+                "Choose a strong password for your account."
+            ]
+        };
+
+        if (screenDetails[screen]) {
+            authTitle.textContent = screenDetails[screen][0];
+            authSubtitle.textContent = screenDetails[screen][1];
+        }
+
+        authMessage.textContent = "";
+    }
+
+    async function passwordResetRequest(endpoint, payload) {
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            credentials: "same-origin",
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(
+                data.error || data.message || "Something went wrong. Please try again."
+            );
+        }
+
+        return data;
+    }
+
+    // 1. Open Forgot Password screen
+    document.getElementById("forgotPasswordLink")
+        .addEventListener("click", function (event) {
+            event.preventDefault();
+
+            const loginEmail = document.getElementById("loginEmail").value.trim();
+
+            document.getElementById("forgotEmail").value = loginEmail;
+
+            showResetScreen("forgot");
+        });
+
+    // 2. Send OTP to registered email
+    forgotForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        passwordResetEmail = document.getElementById("forgotEmail").value.trim();
+
+        const button = forgotForm.querySelector('button[type="submit"]');
+        button.disabled = true;
+
+        try {
+            await passwordResetRequest("/api/forgot-password", {
+                email: passwordResetEmail
+            });
+
+            document.getElementById("resetOTPEmail").value = passwordResetEmail;
+
+            showResetScreen("otp");
+            showResetMessage(
+                "If an account exists for this email, a verification code has been sent."
+            );
+
+        } catch (error) {
+            showResetMessage(error.message);
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    // 3. Verify OTP
+
+    verifyOTPForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const otpInput = document.getElementById("resetOTP");
+        const otpError = document.getElementById("otpError");
+
+        const otp = otpInput.value.trim();
+        const button = verifyOTPForm.querySelector('button[type="submit"]');
+
+        otpError.textContent = "";
+        otpInput.classList.remove("input-error");
+
+        button.disabled = true;
+
+        try {
+            await passwordResetRequest("/api/verify-reset-otp", {
+                email: passwordResetEmail,
+                otp: otp
+            });
+
+            showResetScreen("reset");
+
+            showResetMessage(
+                "Email verified successfully. Create your new password."
+            );
+
+        } catch (error) {
+
+            otpError.textContent = error.message;
+            otpInput.classList.add("input-error");
+
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    // Clear OTP error when user starts typing again
+    document.getElementById("resetOTP").addEventListener("input", function () {
+        document.getElementById("otpError").textContent = "";
+        this.classList.remove("input-error");
+    });
+
+    // 4. Reset password
+    resetPasswordForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const newPassword = document.getElementById("newPassword").value;
+        const confirmPassword = document.getElementById("confirmNewPassword").value;
+
+        const button = resetPasswordForm.querySelector('button[type="submit"]');
+
+        if (newPassword.length < 8 ||
+            !/[A-Z]/.test(newPassword) ||
+            !/[a-z]/.test(newPassword) ||
+            !/[0-9]/.test(newPassword) ||
+            !/[^A-Za-z0-9]/.test(newPassword)) {
+
+            showResetMessage(
+                "Password must contain at least 8 characters, uppercase, lowercase, number and special character."
+            );
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showResetMessage("Passwords do not match.");
+            return;
+        }
+
+        button.disabled = true;
+
+        try {
+            await passwordResetRequest("/api/reset-password", {
+                email: passwordResetEmail,
+                new_password: newPassword,
+                confirm_password: confirmPassword
+            });
+
+            resetPasswordForm.reset();
+            verifyOTPForm.reset();
+            forgotForm.reset();
+
+            document.getElementById("loginEmail").value = passwordResetEmail;
+            document.getElementById("loginPassword").value = "";
+
+            showResetScreen("login");
+            showResetMessage(
+                "Password reset successfully! Please log in with your new password."
+            );
+
+            passwordResetEmail = "";
+
+        } catch (error) {
+            showResetMessage(error.message);
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    // 5. Back to Login buttons
+    document.getElementById("backToLoginFromForgot")
+        .addEventListener("click", function () {
+            showResetScreen("login");
+        });
+
+    document.getElementById("backToLoginFromOTP")
+        .addEventListener("click", function () {
+            showResetScreen("login");
+        });
+
+    document.getElementById("backToLoginFromReset")
+        .addEventListener("click", function () {
+            showResetScreen("login");
+        });
+
+})();
+
+
+/* =====================================
+   FIXED PAGES — one view per nav tab, no page scrolling
+===================================== */
+const VIEW_ELEMENTS = [...document.querySelectorAll(".view")];
+
+function showView(name) {
+    if (!VIEW_ELEMENTS.some(view => view.dataset.view === name)) {
+        name = "overview";
+    }
+
+    VIEW_ELEMENTS.forEach(view => { view.hidden = view.dataset.view !== name; });
+
+    document.querySelectorAll(".nav-pills .nav-link").forEach(link => {
+        link.classList.toggle("active", link.dataset.view === name);
+    });
+
+    history.replaceState(null, "", "#" + name);
+
+    // Charts drawn while hidden have no size; redraw them once visible.
+    requestAnimationFrame(() => {
+        if (categoryChart) categoryChart.resize();
+        if (monthlyChart) monthlyChart.resize();
+    });
+}
+
+document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[data-view]");
+    if (!link) return;
+    event.preventDefault();
+    showView(link.dataset.view);
+});
+
+showView(location.hash.slice(1) || "overview");

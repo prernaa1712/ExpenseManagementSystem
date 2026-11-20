@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#101828">
+    <meta name="theme-color" content="#0d0a2e">
     <meta name="description" content="Manage expenses, analyze spending, and predict future expenses.">
 
     <title>Expense Manager | Finance Dashboard</title>
@@ -17,16 +17,14 @@
 
 <body>
 
-
-    <!-- LOGIN AND REGISTRATION SCREEN -->
+    <!-- LOGIN, REGISTRATION AND PASSWORD RESET SCREEN -->
     <section id="authScreen" class="auth-screen">
         <div class="auth-card">
+
             <div class="auth-brand">
                 <span class="auth-logo">₹</span>
                 <span>Expense<span class="logo-light">Flow</span></span>
             </div>
-
-            <p class="eyebrow">YOUR PERSONAL FINANCE SPACE</p>
             <h1 id="authTitle">Welcome back!</h1>
             <p id="authSubtitle">Log in to manage your expenses securely.</p>
 
@@ -34,6 +32,7 @@
 
             <!-- LOGIN FORM -->
             <form id="loginForm">
+
                 <div class="form-group">
                     <label for="loginEmail">Email address</label>
                     <input type="email" id="loginEmail" autocomplete="email" placeholder="you@example.com" required>
@@ -45,16 +44,22 @@
                         placeholder="Enter your password" required>
                 </div>
 
+                <div class="forgot-password-wrapper">
+                    <a href="#" id="forgotPasswordLink">Forgot Password?</a>
+                </div>
+
                 <button type="submit" class="auth-submit">Log In</button>
 
                 <p class="auth-switch">
                     Don't have an account?
                     <button type="button" id="showRegister">Create an account</button>
                 </p>
+
             </form>
 
             <!-- REGISTRATION FORM -->
             <form id="registerForm" hidden>
+
                 <div class="form-group">
                     <label for="registerName">Full name</label>
                     <input type="text" id="registerName" autocomplete="name" maxlength="100"
@@ -79,79 +84,101 @@
                     Already have an account?
                     <button type="button" id="showLogin">Log in</button>
                 </p>
+
             </form>
+
+            <!-- FORGOT PASSWORD FORM -->
+            <form id="forgotPasswordForm" hidden>
+
+                <div class="form-group">
+                    <label for="forgotEmail">Registered email address</label>
+                    <input type="email" id="forgotEmail" autocomplete="email" placeholder="you@example.com"
+                        maxlength="255" required>
+                </div>
+
+                <button type="submit" class="auth-submit">
+                    Send Verification Code
+                </button>
+
+                <p class="auth-switch">
+                    Remember your password?
+                    <button type="button" id="backToLoginFromForgot">
+                        Back to Login
+                    </button>
+                </p>
+
+            </form>
+
+            <!-- VERIFY OTP FORM -->
+            <form id="verifyResetOTPForm" hidden>
+
+                <div class="form-group">
+                    <label for="resetOTPEmail">Email address</label>
+                    <input type="email" id="resetOTPEmail" readonly required>
+                </div>
+
+                <div class="form-group">
+                    <label for="resetOTP">Six-digit verification code</label>
+
+                    <input type="text" id="resetOTP" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}"
+                        maxlength="6" placeholder="Enter 6-digit OTP" required>
+
+                    <!-- OTP Error Message -->
+                    <p id="otpError" class="field-error" role="alert" aria-live="polite"></p>
+                </div>
+
+                <button type="submit" class="auth-submit">
+                    Verify OTP
+                </button>
+
+                <p class="auth-switch">
+                    <button type="button" id="backToLoginFromOTP">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        Back to Login
+                    </button>
+                </p>
+
+            </form>
+
+            <!-- RESET PASSWORD FORM -->
+            <form id="resetPasswordForm" hidden>
+
+                <div class="form-group">
+                    <label for="newPassword">New password</label>
+                    <input type="password" id="newPassword" autocomplete="new-password" minlength="8"
+                        placeholder="Enter new password" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmNewPassword">Confirm new password</label>
+                    <input type="password" id="confirmNewPassword" autocomplete="new-password" minlength="8"
+                        placeholder="Confirm new password" required>
+                </div>
+
+                <p class="password-hint">
+                    Password must contain at least 8 characters,
+                    including uppercase, lowercase, number and special character.
+                </p>
+
+                <button type="submit" class="auth-submit">
+                    Reset Password
+                </button>
+
+                <p class="auth-switch">
+                    <button type="button" id="backToLoginFromReset">
+                        Back to Login
+                    </button>
+                </p>
+
+            </form>
+
         </div>
     </section>
 
-
+    <!-- DASHBOARD APPLICATION -->
     <div id="dashboardApp" class="app-layout" hidden>
 
-        <!-- LEFT SIDEBAR -->
-        <aside class="sidebar">
-
-            <a href="#dashboard" class="logo">
-                <span class="logo-icon">₹</span>
-                <span>Expense<span class="logo-light">Flow</span></span>
-            </a>
-
-            <div class="sidebar-label">WORKSPACE</div>
-
-            <nav class="sidebar-nav" aria-label="Main navigation">
-                <a href="#dashboard" class="nav-link active">
-                    <span class="nav-icon">▦</span>
-                    <span>Dashboard</span>
-                </a>
-
-                <a href="#add-expense" class="nav-link">
-                    <span class="nav-icon">＋</span>
-                    <span>Add Expense</span>
-                </a>
-
-                <a href="#recent-expenses" class="nav-link">
-                    <span class="nav-icon">↔</span>
-                    <span>Transactions</span>
-                </a>
-
-                <a href="#analytics" class="nav-link">
-                    <span class="nav-icon">▥</span>
-                    <span>Analytics</span>
-                </a>
-
-                <a href="#budget" class="nav-link">
-                    <span class="nav-icon">₹</span>
-                    <span>Monthly Budget</span>
-                </a>
-
-                <a href="#prediction" class="nav-link">
-                    <span class="nav-icon">⌁</span>
-                    <span>Expense Prediction</span>
-                </a>
-
-                <a href="#bot" class="nav-link">
-                    <span class="nav-icon">✧</span>
-                    <span>AI Assistant</span>
-                </a>
-            </nav>
-
-            <div class="sidebar-bottom">
-                <div class="sidebar-help">
-                    <div class="help-icon">✦</div>
-                    <h3>Spend smarter.</h3>
-                    <p>Understand your spending and build better financial habits.</p>
-                    <a href="#analytics">View insights <span>→</span></a>
-                </div>
-
-                <div class="sidebar-profile">
-                    <div class="profile-avatar">EM</div>
-                    <div class="profile-info">
-                        <strong>Personal Account</strong>
-                        <span>Finance dashboard</span>
-                    </div>
-                    <span class="profile-menu">•••</span>
-                </div>
-            </div>
-
-        </aside>
+        
 
         <!-- MAIN APPLICATION -->
         <div class="app-main">
@@ -159,31 +186,36 @@
             <!-- TOP TOOLBAR -->
             <header class="topbar">
 
-                <div class="topbar-title">
-                    <span class="breadcrumb">Workspace /</span>
-                    <strong>Dashboard</strong>
-                </div>
+                <a href="#overview" data-view="overview" class="logo"><span class="logo-icon">₹</span><span>Expense<span class="logo-light">Flow</span></span></a>
+                <nav class="nav-pills" aria-label="Main navigation">
+                    <a href="#overview" data-view="overview" class="nav-link active">Overview</a>
+                    <a href="#transactions" data-view="transactions" class="nav-link">Transactions</a>
+                    <a href="#analytics" data-view="analytics" class="nav-link">Analytics</a>
+                    <a href="#budgets" data-view="budgets" class="nav-link">Budgets</a>
+                    <a href="#prediction" data-view="prediction" class="nav-link">Prediction</a>
+                    <a href="#assistant" data-view="assistant" class="nav-link">Assistant</a>
+                </nav>
 
                 <div class="topbar-actions">
-                    <div class="status-indicator">
-                        <span class="status-dot"></span>
-                        Expense tracking
-                    </div>
 
-                    <a href="#add-expense" class="topbar-add">
+                    
+
+                    <a href="#add-expense" data-view="add-expense" class="topbar-add">
                         <span>＋</span> Add expense
                     </a>
 
-
-
                     <div class="profile-dropdown-container">
+
                         <button type="button" class="topbar-avatar" id="profileMenuButton" aria-label="Open user menu"
                             aria-expanded="false">
+
                             <span id="topbarAvatarInitials">👤</span>
                             <img id="topbarProfileImage" alt="Profile picture" hidden>
+
                         </button>
 
                         <div class="profile-dropdown" id="profileDropdown" hidden>
+
                             <div class="profile-dropdown-heading">My Account</div>
 
                             <label for="profilePictureInput" class="profile-upload-option">
@@ -199,9 +231,10 @@
                                 <span>↪</span>
                                 <span>Logout</span>
                             </button>
-                        </div>
-                    </div>
 
+                        </div>
+
+                    </div>
 
                 </div>
 
@@ -210,10 +243,11 @@
             <!-- PAGE CONTENT -->
             <main class="dashboard-content">
 
-                <!-- WELCOME SECTION -->
+                <div class="view" data-view="overview" id="view-overview">
+
                 <section class="welcome-section">
+
                     <div>
-                        <p class="eyebrow">YOUR FINANCIAL OVERVIEW</p>
                         <h1>Good to see you! <span>👋</span></h1>
                         <p class="welcome-description">
                             Here's what's happening with your money.
@@ -221,9 +255,11 @@
                         </p>
                     </div>
 
-                    <a href="#add-expense" class="primary-action">
-                        <span>＋</span> Add new expense
-                    </a>
+                    <div class="welcome-actions">
+                        <a href="#add-expense" data-view="add-expense" class="soft-action"><span>＋</span> Add Expense</a>
+                        <button type="button" class="ai-action" onclick="toggleChatbot()"><span>✦</span> Ask Assistant</button>
+                    </div>
+
                 </section>
 
                 <!-- DASHBOARD SUMMARY -->
@@ -267,10 +303,13 @@
                         </article>
 
                     </div>
+
                 </section>
 
-                <!-- ADD EXPENSE -->
-                <section class="content-panel add-expense" id="add-expense">
+                </div>
+
+<!-- ADD EXPENSE -->
+                <section class="content-panel add-expense view" id="add-expense" data-view="add-expense" hidden>
 
                     <div class="section-heading">
                         <div>
@@ -324,10 +363,11 @@
                         </div>
 
                     </form>
+
                 </section>
 
                 <!-- RECENT TRANSACTIONS -->
-                <section class="content-panel expense-list" id="recent-expenses">
+                <section class="content-panel expense-list view" id="recent-expenses" data-view="transactions" hidden>
 
                     <div class="section-heading">
                         <div>
@@ -350,7 +390,6 @@
                             </thead>
 
                             <tbody id="expenseTableBody">
-                                <!-- Existing JavaScript inserts expense rows here. -->
                             </tbody>
                         </table>
                     </div>
@@ -358,11 +397,10 @@
                 </section>
 
                 <!-- ANALYTICS -->
-                <section class="analytics-section" id="analytics">
+                <section class="analytics-section view" id="analytics" data-view="analytics" hidden>
 
                     <div class="section-heading">
                         <div>
-                            <p class="eyebrow">DATA-DRIVEN INSIGHTS</p>
                             <h2>Spending Analytics</h2>
                             <p>Explore your spending patterns and expense breakdown.</p>
                         </div>
@@ -423,13 +461,15 @@
                         </article>
 
                     </div>
+
                 </section>
 
-                <!-- MONTHLY BUDGET -->
+                <div class="view" data-view="budgets" hidden>
+<!-- MONTHLY BUDGET -->
                 <section id="budget" class="content-panel feature-section budget-section">
+
                     <div class="section-heading">
                         <div>
-                            <p class="eyebrow">SMART MONEY MANAGEMENT</p>
                             <h2>Monthly Budget</h2>
                             <p>Set a spending limit and stay in control of your finances.</p>
                         </div>
@@ -439,6 +479,7 @@
                     <div class="budget-card">
 
                         <div class="budget-form">
+
                             <label for="budgetMonth">Select Month</label>
                             <input type="month" id="budgetMonth">
 
@@ -451,6 +492,7 @@
                             </button>
 
                             <p id="budgetMessage" aria-live="polite"></p>
+
                         </div>
 
                         <div class="budget-summary">
@@ -471,6 +513,7 @@
                             </div>
 
                             <div class="budget-progress">
+
                                 <div class="budget-progress-heading">
                                     <span>Budget Used</span>
                                     <strong id="budgetPercentage">0%</strong>
@@ -478,22 +521,29 @@
 
                                 <div class="budget-progress-track" role="progressbar" aria-label="Monthly budget used"
                                     aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="budgetProgressTrack">
+
                                     <div id="budgetProgressBar"></div>
+
                                 </div>
+
                             </div>
 
                             <p id="budgetAlert" aria-live="polite">
                                 Set a budget to start tracking your spending.
                             </p>
+
                         </div>
+
                     </div>
+
                 </section>
+
                 <!-- MONTHLY BUDGET HISTORY -->
                 <section id="budget-history" class="content-panel feature-section">
 
                     <div class="section-heading">
+
                         <div>
-                            <p class="eyebrow">YOUR FINANCIAL RECORDS</p>
                             <h2>Monthly Budget History</h2>
                             <p>Review your previous monthly budgets and actual spending.</p>
                         </div>
@@ -501,6 +551,7 @@
                         <button type="button" id="refreshBudgetHistory">
                             ↻ Refresh
                         </button>
+
                     </div>
 
                     <div id="budgetHistoryMessage" aria-live="polite">
@@ -508,6 +559,7 @@
                     </div>
 
                     <div class="table-wrapper" id="budgetHistoryWrapper" hidden>
+
                         <table>
                             <thead>
                                 <tr>
@@ -523,24 +575,29 @@
                             <tbody id="budgetHistoryTableBody">
                             </tbody>
                         </table>
+
                     </div>
 
                 </section>
 
+                </div>
 
-                <!-- PREDICTION -->
-                <section id="prediction" class="content-panel feature-section prediction-section">
+<!-- EXPENSE PREDICTION -->
+                <section id="prediction" class="content-panel feature-section prediction-section view" data-view="prediction" hidden>
 
                     <div class="section-heading">
+
                         <div>
-                            <p class="eyebrow">SMART FINANCIAL PLANNING</p>
                             <h2>Expense Prediction</h2>
                             <p>Use machine learning to estimate your future spending.</p>
                         </div>
+
                         <span class="prediction-symbol">⌁</span>
+
                     </div>
 
                     <div class="prediction-card">
+
                         <div class="prediction-illustration">✦</div>
 
                         <div class="prediction-copy">
@@ -554,9 +611,9 @@
                         <button type="button" id="predictButton">
                             Predict Expense <span>→</span>
                         </button>
+
                     </div>
 
-                    <!-- ML prediction results -->
                     <div id="predictionDetails" class="prediction-details" hidden>
 
                         <div class="prediction-metric">
@@ -583,39 +640,43 @@
 
                 </section>
 
-                <!-- ASSISTANT -->
-                <section id="bot" class="content-panel feature-section assistant-section">
+                <!-- AI ASSISTANT -->
+                <section id="bot" class="content-panel feature-section assistant-section view" data-view="assistant" hidden>
 
                     <div class="section-heading">
+
                         <div>
-                            <p class="eyebrow">YOUR FINANCIAL COMPANION</p>
                             <h2>Expense Assistant</h2>
                             <p>Get help understanding your expenses with your existing chatbot.</p>
                         </div>
+
                         <span class="assistant-symbol">✧</span>
+
                     </div>
 
                     <div class="assistant-banner">
+
                         <div class="assistant-avatar">✦</div>
+
                         <div class="assistant-copy">
                             <h3>How can I help you today?</h3>
                             <p>Ask questions about your expenses and spending habits.</p>
                         </div>
+
                         <button type="button" onclick="toggleChatbot()">
                             Open Assistant <span>→</span>
                         </button>
+
                     </div>
 
                 </section>
 
-                <!-- FOOTER -->
-                <footer class="app-footer">
-                    <p>© 2026 ExpenseFlow. Built to help you manage your money smarter.</p>
-                    <a href="#dashboard">Back to top ↑</a>
-                </footer>
+                
 
             </main>
+
         </div>
+
     </div>
 
     <!-- FLOATING CHATBOT BUTTON -->
@@ -637,9 +698,12 @@
         </div>
 
         <div id="chatbot-input-area">
+
             <input type="text" id="chatbot-input" placeholder="Ask about your expenses..."
                 aria-label="Message to expense assistant" onkeypress="handleChatKey(event)">
+
             <button type="button" onclick="sendMessage()">Send</button>
+
         </div>
 
     </div>

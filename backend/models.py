@@ -1,7 +1,7 @@
 
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from datetime import datetime
 db = SQLAlchemy()
 
 
@@ -137,3 +137,43 @@ class BudgetAlert(db.Model):
             name="unique_user_month_alert"
         ),
     )
+
+
+class PasswordResetOTP(db.Model):
+    __tablename__ = "password_reset_otp"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        unique=True,
+        index=True
+    )
+
+    otp_hash = db.Column(db.String(255), nullable=False)
+
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    attempts = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0
+    )
+
+    verified_at = db.Column(db.DateTime, nullable=True)
+
+    created_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    user = db.relationship("User", backref="password_reset_otp")
+
+    def set_otp(self, otp):
+        self.otp_hash = generate_password_hash(otp)
+
+    def check_otp(self, otp):
+        return check_password_hash(self.otp_hash, otp)

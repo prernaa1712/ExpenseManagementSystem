@@ -1,6 +1,7 @@
 import math
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
+import re
 import secrets
 import os
 import sys
@@ -28,22 +29,46 @@ UPLOAD_DIR = os.path.join(FRONTEND_DIR, "uploads")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-from backend.models import db, User, Expense, Budget, BudgetAlert
-from backend.email_service import send_budget_alert
+from backend.models import (
+    db,
+    User,
+    Expense,
+    Budget,
+    BudgetAlert,
+    PasswordResetOTP
+)
+from backend.email_service import (
+    send_budget_alert,
+    send_password_reset_otp
+)
 from ml.predictor import prepare_data, predict_next_month
 from bot.bot import chatbot_response
 
 app = Flask(__name__)
 
+
 # Application and session configuration
-app.config["SECRET_KEY"] = os.environ.get(
-    "SECRET_KEY",
-    "change-this-development-secret-key"
-)
+
+SECRET_KEY = os.environ.get("SECRET_KEY")
+
+# Never allow an insecure fallback in production.
+if not SECRET_KEY:
+    if os.environ.get("FLASK_ENV") == "production":
+        raise RuntimeError(
+            "SECRET_KEY environment variable must be configured."
+        )
+
+    # Generate a temporary secure key for local development.
+    SECRET_KEY = secrets.token_hex(32)
+
+app.config["SECRET_KEY"] = SECRET_KEY
 
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = (
+    os.environ.get("FLASK_ENV") == "production"
+)
 
 # Database configuration
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -86,10 +111,52 @@ else:
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # Initialize SQLAlchemys
 db.init_app(app)
+# Create any missing database tables, including password_reset_otp.
+# Existing tables and records are preserved.
+with app.app_context():
+    db.create_all()
 
 # -----------------------------------
 # Authentication helper
 # -----------------------------------
+
+def is_strong_password(password):
+    """
+    Password must have:
+    - At least 8 characters
+    - One uppercase letter
+    - One lowercase letter
+    - One digit
+    - One special character
+    """
+
+    if len(password) < 8:
+        return False
+
+    if not re.search(r"[A-Z]", password):
+        return False
+
+    if not re.search(r"[a-z]", password):
+        return False
+
+    if not re.search(r"\d", password):
+        return False
+
+    if not re.search(r"[^A-Za-z0-9]", password):
+        return False
+
+    return True
+
+
+def is_valid_email(email):
+    """Basic email-format validation."""
+
+    return bool(
+        re.fullmatch(
+            r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+            email
+        )
+    )
 
 def login_required(function):
     @wraps(function)
@@ -238,9 +305,22 @@ def register():
             "error": "Name, email and password are required."
         }), 400
 
-    if len(password) < 6:
+    if len(name) > 100:
         return jsonify({
-            "error": "Password must contain at least 6 characters."
+            "error": "Name cannot exceed 100 characters."
+        }), 400
+
+    if len(email) > 255 or not is_valid_email(email):
+        return jsonify({
+            "error": "Please enter a valid email address."
+        }), 400
+
+    if not is_strong_password(password):
+        return jsonify({
+            "error": (
+                "Password must contain at least 8 characters, "
+                "including uppercase, lowercase, number and special character."
+            )
         }), 400
 
     existing_user = User.query.filter_by(email=email).first()
@@ -304,6 +384,222 @@ def login():
         "user": user.to_dict()
     })
 
+
+
+# -----------------------------------
+# Forgot Password - Request OTP
+# -----------------------------------
+
+@app.route("/api/forgot-password", methods=["POST"])
+def forgot_password():
+    data = request.get_json(silent=True) or {}
+
+    email = (data.get("email") or "").strip().lower()
+
+    generic_message = (
+        "If an account exists for this email, "
+        "a verification code will be sent."
+    )
+
+    if not email or len(email) > 255 or not is_valid_email(email):
+        return jsonify({"message": generic_message}), 200
+
+    user = User.query.filter_by(email=email).first()
+
+    # Do not reveal whether an account exists.
+    if not user:
+        return jsonify({"message": generic_message}), 200
+
+    now = datetime.utcnow()
+
+    reset_record = PasswordResetOTP.query.filter_by(
+        user_id=user.id
+    ).first()
+
+    # Prevent repeated OTP requests within 60 seconds.
+    if reset_record:
+        elapsed = (now - reset_record.created_at).total_seconds()
+
+        if elapsed < 60:
+            return jsonify({"message": generic_message}), 200
+
+    # Generate a secure six-digit OTP.
+    otp = f"{secrets.randbelow(1000000):06d}"
+
+    if reset_record:
+        reset_record.set_otp(otp)
+        reset_record.expires_at = now + timedelta(minutes=10)
+        reset_record.attempts = 0
+        reset_record.verified_at = None
+        reset_record.created_at = now
+    else:
+        reset_record = PasswordResetOTP(
+            user_id=user.id,
+            expires_at=now + timedelta(minutes=10),
+            attempts=0
+        )
+        reset_record.set_otp(otp)
+        db.session.add(reset_record)
+
+    try:
+        db.session.commit()
+
+        email_sent = send_password_reset_otp(user, otp)
+
+        if not email_sent:
+            db.session.delete(reset_record)
+            db.session.commit()
+            app.logger.error(
+                "Password reset email could not be sent for user %s",
+                user.id
+            )
+
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Forgot password request failed.")
+
+    return jsonify({"message": generic_message}), 200
+
+
+# -----------------------------------
+# Forgot Password - Verify OTP
+# -----------------------------------
+
+@app.route("/api/verify-reset-otp", methods=["POST"])
+def verify_reset_otp():
+    data = request.get_json(silent=True) or {}
+
+    email = (data.get("email") or "").strip().lower()
+    otp = (data.get("otp") or "").strip()
+
+    if not email or not otp or not is_valid_email(email):
+        return jsonify({
+            "error": "Please enter your email and verification code."
+        }), 400
+
+    user = User.query.filter_by(email=email).first()
+
+    if not user:
+        return jsonify({
+            "error": "Invalid or expired verification code."
+        }), 400
+
+    reset_record = PasswordResetOTP.query.filter_by(
+        user_id=user.id
+    ).first()
+
+    if not reset_record:
+        return jsonify({
+            "error": "Invalid or expired verification code."
+        }), 400
+
+    if datetime.utcnow() > reset_record.expires_at:
+        db.session.delete(reset_record)
+        db.session.commit()
+
+        return jsonify({
+            "error": "Verification code has expired. Request a new one."
+        }), 400
+
+    if reset_record.attempts >= 5:
+        return jsonify({
+            "error": "Too many incorrect attempts. Request a new code."
+        }), 429
+
+    reset_record.attempts += 1
+
+    if not reset_record.check_otp(otp):
+        db.session.commit()
+
+        return jsonify({
+            "error": "Incorrect verification code."
+        }), 400
+
+    reset_record.verified_at = datetime.utcnow()
+    session["password_reset_user_id"] = user.id
+    db.session.commit()
+
+    return jsonify({
+        "message": "Email verification successful. You can reset your password."
+    }), 200
+
+
+# -----------------------------------
+# Forgot Password - Set New Password
+# -----------------------------------
+
+@app.route("/api/reset-password", methods=["POST"])
+def reset_password():
+    data = request.get_json(silent=True) or {}
+
+    email = (data.get("email") or "").strip().lower()
+    new_password = data.get("new_password") or ""
+    confirm_password = data.get("confirm_password") or ""
+
+    if not email or not is_valid_email(email):
+        return jsonify({"error": "Please enter a valid email address."}), 400
+
+    if new_password != confirm_password:
+        return jsonify({"error": "Passwords do not match."}), 400
+
+    if not is_strong_password(new_password):
+        return jsonify({
+            "error": (
+                "Password must contain at least 8 characters, "
+                "including uppercase, lowercase, number and special character."
+            )
+        }), 400
+
+    user = User.query.filter_by(email=email).first()
+
+    if not user:
+        return jsonify({
+            "error": "Password reset verification is invalid or expired."
+        }), 400
+
+    reset_record = PasswordResetOTP.query.filter_by(
+        user_id=user.id
+    ).first()
+
+    if (
+        not reset_record
+        or not reset_record.verified_at
+        or session.get("password_reset_user_id") != user.id
+    ):
+        return jsonify({
+            "error": "Please verify your OTP before resetting your password."
+        }), 400
+
+    now = datetime.utcnow()
+
+    if now > reset_record.expires_at:
+        db.session.delete(reset_record)
+        db.session.commit()
+        session.pop("password_reset_user_id", None)
+
+        return jsonify({
+            "error": "Verification has expired. Request a new OTP."
+        }), 400
+
+    # Update the password using the existing secure hashing method.
+    user.set_password(new_password)
+
+    # OTP must not be reusable.
+    db.session.delete(reset_record)
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Password reset failed.")
+
+        return jsonify({
+            "error": "Unable to reset password. Please try again."
+        }), 500
+
+    return jsonify({
+        "message": "Password reset successful. Please log in."
+    }), 200
 
 # -----------------------------------
 # Current logged-in user
